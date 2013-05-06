@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>blender.js</title>
+    <script type="text/javascript" src="blender.js"></script>
+    <style>
+        div {
+            width: 400px;
+            float: left;
+            margin-left: 5px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div><h2>Source</h2><canvas id="src" width="400" height="1100"></canvas></div>
+    <div><h2>Destination</h2><canvas id="dst" width="400" height="1100"></canvas></div>
+    <div><h2>Result</h2><canvas id="out" width="400" height="1100"></canvas></div>
+    <script>
+        var src = document.getElementById('src').getContext('2d');
+        var dst = document.getElementById('dst').getContext('2d');
+        var out = document.getElementById('out').getContext('2d');
+        var tests = [
+            {
+                name: 'normal',
+                setup: function () {
+                    defaultSetup(0, 0);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'normal', {
+                        sourceX: 0,
+                        sourceY: 0,
+                        destX: 0,
+                        destY: 0,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'multiply',
+                setup: function () {
+                    defaultSetup(0, 100);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'multiply', {
+                        sourceX: 0,
+                        sourceY: 100,
+                        destX: 0,
+                        destY: 100,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'screen',
+                setup: function () {
+                    defaultSetup(0, 200);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'screen', {
+                        sourceX: 0,
+                        sourceY: 200,
+                        destX: 0,
+                        destY: 200,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'overlay',
+                setup: function () {
+                    defaultSetup(0, 300);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'overlay', {
+                        sourceX: 0,
+                        sourceY: 300,
+                        destX: 0,
+                        destY: 300,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'darken',
+                setup: function () {
+                    defaultSetup(0, 400);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'darken', {
+                        sourceX: 0,
+                        sourceY: 400,
+                        destX: 0,
+                        destY: 400,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'lighten',
+                setup: function () {
+                    defaultSetup(0, 500);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'lighten', {
+                        sourceX: 0,
+                        sourceY: 500,
+                        destX: 0,
+                        destY: 500,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'color-dodge',
+                setup: function () {
+                    defaultSetup(0, 600);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'color-dodge', {
+                        sourceX: 0,
+                        sourceY: 600,
+                        destX: 0,
+                        destY: 600,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'hard-light',
+                setup: function () {
+                    defaultSetup(0, 700);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'hard-light', {
+                        sourceX: 0,
+                        sourceY: 700,
+                        destX: 0,
+                        destY: 700,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'soft-light',
+                setup: function () {
+                    defaultSetup(0, 800);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'soft-light', {
+                        sourceX: 0,
+                        sourceY: 800,
+                        destX: 0,
+                        destY: 800,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'difference',
+                setup: function () {
+                    defaultSetup(0, 900);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'difference', {
+                        sourceX: 0,
+                        sourceY: 900,
+                        destX: 0,
+                        destY: 900,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'exclusion',
+                setup: function () {
+                    defaultSetup(0, 1000);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'exclusion', {
+                        sourceX: 0,
+                        sourceY: 1000,
+                        destX: 0,
+                        destY: 1000,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            }
+        ];
+
+        function defaultSetup(x, y) {
+            src.save();
+            dst.save();
+            src.translate(x, y);
+            dst.translate(x, y);
+
+            src.save();
+            src.fillStyle = 'rgba(255, 0, 0, 1)';
+            src.fillRect(20, 20, 50, 50);
+            src.restore();
+
+            dst.save();
+            dst.fillStyle = 'rgba(0, 0, 255, 1)';
+            dst.fillRect(30, 30, 50, 50);
+            dst.restore();
+
+            src.save();
+            src.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            src.fillRect(120, 20, 50, 50);
+            src.restore();
+
+            dst.save();
+            dst.fillStyle = 'rgba(0, 0, 255, 1)';
+            dst.fillRect(130, 30, 50, 50);
+            dst.restore();
+
+            src.save();
+            src.fillStyle = 'rgba(255, 0, 0, 1)';
+            src.fillRect(220, 20, 50, 50);
+            src.restore();
+
+            dst.save();
+            dst.fillStyle = 'rgba(0, 0, 255, 0.5)';
+            dst.fillRect(230, 30, 50, 50);
+            dst.restore();
+
+            src.save();
+            src.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            src.fillRect(320, 20, 50, 50);
+            src.restore();
+
+            dst.save();
+            dst.fillStyle = 'rgba(0, 0, 255, 0.5)';
+            dst.fillRect(330, 30, 50, 50);
+            dst.restore();
+
+            src.restore();
+            dst.restore();
+        }
+
+        function setupTests() {
+            tests.forEach(function (test) {
+                console.log('Setting up test: '+test.name);
+                test.setup();
+            });
+
+            out.clearRect(0, 0, out.canvas.width, out.canvas.height);
+            out.drawImage(dst.canvas, 0, 0);
+        }
+
+        function runTests() {
+            tests.forEach(function (test) {
+                console.log('Running test: '+test.name);
+                test.run();
+            });
+        }
+
+        setupTests();
+        runTests();
+    </script>
+</body>
+</html>
