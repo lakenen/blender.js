@@ -19,7 +19,7 @@ var Blender = (function () {
         offsets.width  = Math.min(offsets.width, sourceCanvas.width - offsets.sourceX, destCanvas.width - offsets.destX);
         offsets.height = Math.min(offsets.height, sourceCanvas.height - offsets.sourceY, destCanvas.height - offsets.destY);
 
-        var useNative = /firefox/i.test(navigator.userAgent);
+        var useNative = /firefox|webkit\/537\.4/i.test(navigator.userAgent);
 
         if (useNative) {
             dest.save();
@@ -185,26 +185,59 @@ var Blender = (function () {
 
             // darken(sC, dC) = min(dC, sC)
             if (srcRA > dstRA) {
-                dst[px] = dstRA * ddA;
+                dst[px] = (dstRA + srcRA * (1 - dstA)) * ddA;
             } else {
-                dst[px] = srcRA * ddA;
+                dst[px] = (srcRA + dstRA * (1 - srcA)) * ddA;
             }
             if (srcGA > dstGA) {
-                dst[px+1] = dstGA * ddA;
+                dst[px+1] = (dstGA + srcGA * (1 - dstA)) * ddA;
             } else {
-                dst[px+1] = srcGA * ddA;
+                dst[px+1] = (srcGA + dstGA * (1 - srcA)) * ddA;
             }
             if (srcBA > dstBA) {
-                dst[px+2] = dstBA * ddA;
+                dst[px+2] = (dstBA + srcBA * (1 - dstA)) * ddA;
             } else {
-                dst[px+2] = srcBA * ddA;
+                dst[px+2] = (srcBA + dstBA * (1 - srcA)) * ddA;
             }
         }
     }
 
     function lighten(src, dst) {
-        darken(dst, src);
-        dst.set(src);
+        var srcA, srcRA, srcGA, srcBA,
+            dstA, dstRA, dstGA, dstBA,
+            dA, ddA;
+        for (var px = 0, l = dst.length; px < l; px += 4) {
+            srcA  = src[px+3] / 255;
+            srcRA = src[px]   / 255 * srcA;
+            srcGA = src[px+1] / 255 * srcA;
+            srcBA = src[px+2] / 255 * srcA;
+
+            dstA  = dst[px+3] / 255;
+            dstRA = dst[px]   / 255 * dstA;
+            dstGA = dst[px+1] / 255 * dstA;
+            dstBA = dst[px+2] / 255 * dstA;
+
+            dA = (srcA + dstA - srcA * dstA);
+            ddA = 255 / dA;
+            dst[px+3] = 255 * dA;
+
+            // lighten(sC, dC) = max(dC, sC)
+            if (srcRA * dstA > dstRA * srcA) {
+                dst[px] = (srcRA + dstRA * (1 - srcA)) * ddA;
+            } else {
+                dst[px] = (dstRA + srcRA * (1 - dstA)) * ddA;
+            }
+            if (srcGA * dstA > dstGA * srcA) {
+                dst[px+1] = (srcGA + dstGA * (1 - srcA)) * ddA;
+            } else {
+                dst[px+1] = (dstGA + srcGA * (1 - dstA)) * ddA;
+            }
+            if (srcBA * dstA > dstBA * srcA) {
+                dst[px+2] = (srcBA + dstBA * (1 - srcA)) * ddA;
+            } else {
+                dst[px+2] = (dstBA + srcBA * (1 - dstA)) * ddA;
+            }
+        }
     }
 
     function colordodge(src, dst) {
@@ -226,28 +259,34 @@ var Blender = (function () {
             ddA = 255 / dA;
             dst[px+3] = 255 * dA;
 
-            if (dstRA === 0 || dstRA === 1) {
-                dst[px] = dstRA * ddA;
+            if (src[px] === 255) {
+                if (dst[px] === 0) {
+                    dst[px] = 255;
+                } else {
+                    dst[px] = (srcA * dstA + srcRA * (1 - dstA) + dstRA * (1 - srcA)) * ddA;
+                }
             } else {
-                dstRA = dstRA / (1 - srcRA);
-                if (dstRA > 1) dstRA = 1;
-                dst[px] = dstRA * ddA;
+                dst[px] = Math.min(1, dstRA/(1 - srcRA)) * ddA;
             }
 
-            if (dstGA === 0 || dstGA === 1) {
-                dst[px+1] = dstGA * ddA;
+            if (src[px+1] === 255) {
+                if (dst[px+1] === 0) {
+                    dst[px+1] = 255;
+                } else {
+                    dst[px+1] = (srcA * dstA + srcGA * (1 - dstA) + dstGA * (1 - srcA)) * ddA;
+                }
             } else {
-                dstGA = dstGA / (1 - srcGA);
-                if (dstGA > 1) dstGA = 1;
-                dst[px+1] = dstGA * ddA;
+                dst[px+1] = Math.min(1, dstGA/(1 - srcGA)) * ddA;
             }
 
-            if (dstBA === 0 || dstBA === 1) {
-                dst[px+2] = dstBA * ddA;
+            if (src[px+2] === 255) {
+                if (dst[px+2] === 0) {
+                    dst[px+2] = 255;
+                } else {
+                    dst[px+2] = (srcA * dstA + srcBA * (1 - dstA) + dstBA * (1 - srcA)) * ddA;
+                }
             } else {
-                dstBA = dstBA / (1 - srcBA);
-                if (dstBA > 1) dstBA = 1;
-                dst[px+2] = dstBA * ddA;
+                dst[px+2] = Math.min(1, dstBA/(1 - srcBA)) * ddA;
             }
         }
     }
@@ -271,9 +310,35 @@ var Blender = (function () {
             ddA = 255 / dA;
             dst[px+3] = 255 * dA;
 
-            dst[px]   = (srcRA + dstRA - dstRA * srcA) * ddA;
-            dst[px+1] = (srcGA + dstGA - dstGA * srcA) * ddA;
-            dst[px+2] = (srcBA + dstBA - dstBA * srcA) * ddA;
+            if (dstRA === 0) {
+                dst[px] = 0;
+            } else if (srcRA === 1) {
+                dst[px] = 255;
+            } else {
+                dstRA = dstRA / (1 - srcRA);
+                if (dstRA > 1) dstRA = 1;
+                dst[px] = dstRA * ddA;
+            }
+
+            if (dstGA === 0) {
+                dst[px+1] = 0;
+            } else if (srcGA === 1) {
+                dst[px+1] = 255;
+            } else {
+                dstGA = dstGA / (1 - srcGA);
+                if (dstGA > 1) dstGA = 1;
+                dst[px+1] = dstGA * ddA;
+            }
+
+            if (dstBA === 0) {
+                dst[px+2] = 0;
+            } else if (srcBA === 1) {
+                dst[px+2] = 255;
+            } else {
+                dstBA = dstBA / (1 - srcBA);
+                if (dstBA > 1) dstBA = 1;
+                dst[px+2] = dstBA * ddA;
+            }
         }
     }
 
@@ -296,9 +361,21 @@ var Blender = (function () {
             ddA = 255 / dA;
             dst[px+3] = 255 * dA;
 
-            dst[px]   = (srcRA + dstRA - dstRA * srcA) * ddA;
-            dst[px+1] = (srcGA + dstGA - dstGA * srcA) * ddA;
-            dst[px+2] = (srcBA + dstBA - dstBA * srcA) * ddA;
+            if (srcRA <= 0.5) {
+                dst[px] = 2 * dst[px] * srcRA / dA;
+            } else {
+                dst[px] = 255 - (2 - 2 * srcRA / srcA) * (255 - dst[px]);
+            }
+            if (srcGA <= 0.5) {
+                dst[px+1] = 2 * dst[px+1] * srcGA / dA;
+            } else {
+                dst[px+1] = 255 - (2 - 2 * srcGA / srcA) * (255 - dst[px+1]);
+            }
+            if (srcBA <= 0.5) {
+                dst[px+2] = 2 * dst[px+2] * srcBA / dA;
+            } else {
+                dst[px+2] = 255 - (2 - 2 * srcBA / srcA) * (255 - dst[px+2]);
+            }
         }
     }
 
@@ -321,9 +398,7 @@ var Blender = (function () {
             ddA = 255 / dA;
             dst[px+3] = 255 * dA;
 
-            dst[px]   = (srcRA + dstRA - dstRA * srcA) * ddA;
-            dst[px+1] = (srcGA + dstGA - dstGA * srcA) * ddA;
-            dst[px+2] = (srcBA + dstBA - dstBA * srcA) * ddA;
+            //// NOT IMPLEMENTED
         }
     }
 
@@ -346,9 +421,7 @@ var Blender = (function () {
             ddA = 255 / dA;
             dst[px+3] = 255 * dA;
 
-            dst[px]   = (srcRA + dstRA - dstRA * srcA) * ddA;
-            dst[px+1] = (srcGA + dstGA - dstGA * srcA) * ddA;
-            dst[px+2] = (srcBA + dstBA - dstBA * srcA) * ddA;
+            //// NOT IMPLEMENTED
         }
     }
 
@@ -371,9 +444,7 @@ var Blender = (function () {
             ddA = 255 / dA;
             dst[px+3] = 255 * dA;
 
-            dst[px]   = (srcRA + dstRA - dstRA * srcA) * ddA;
-            dst[px+1] = (srcGA + dstGA - dstGA * srcA) * ddA;
-            dst[px+2] = (srcBA + dstBA - dstBA * srcA) * ddA;
+            //// NOT IMPLEMENTED
         }
     }
 
