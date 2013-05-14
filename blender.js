@@ -19,6 +19,8 @@ var Blender = (function () {
         };
         offsets.width  = Math.min(offsets.width, sourceCanvas.width - offsets.sourceX, destCanvas.width - offsets.destX);
         offsets.height = Math.min(offsets.height, sourceCanvas.height - offsets.sourceY, destCanvas.height - offsets.destY);
+
+        // TODO: test for native support (possibly on per-blendmode basis)
         var useNative = /firefox|webkit\/537\.4/i.test(navigator.userAgent);
 
         if (useNative) {
@@ -62,17 +64,17 @@ var Blender = (function () {
 
             dA = (srcA + dstA - srcA * dstA);
             ddA = 255 / dA;
-            dst[px+3] = 255 * dA;
+            dst[px+3] = Math.ceil(255 * dA);
 
-            dst[px]   = blendFn(srcRA, dstRA, srcA, dstA) * ddA;
-            dst[px+1] = blendFn(srcGA, dstGA, srcA, dstA) * ddA;
-            dst[px+2] = blendFn(srcBA, dstBA, srcA, dstA) * ddA;
+            dst[px]   = Math.ceil(blendFn(srcRA, dstRA, srcA, dstA) * ddA);
+            dst[px+1] = Math.ceil(blendFn(srcGA, dstGA, srcA, dstA) * ddA);
+            dst[px+2] = Math.ceil(blendFn(srcBA, dstBA, srcA, dstA) * ddA);
         }
     }
 
     var blenders = {
         normal: function (srcCA, dstCA, srcA, dstA) {
-            return srcCA + dstCA - dstCA * srcA;
+            return srcCA + dstCA * (1 - srcA);
         },
         multiply: function (srcCA, dstCA, srcA, dstA) {
             return srcCA * dstCA + srcCA * (1 - dstA) + dstCA * (1 - srcA);
@@ -103,6 +105,7 @@ var Blender = (function () {
             } else if (srcCA === srcA) {
                 return srcA * dstA + srcCA * (1 - dstA) + dstCA * (1 - srcA);
             } else if (srcCA < srcA) {
+                if (srcCA === 1) console.log(srcCA);
                 return Math.min(1, dstCA / (1 - srcCA));
             }
         },

@@ -4,8 +4,16 @@
     <title>blender.js</title>
     <script type="text/javascript" src="blender.js"></script>
     <style>
-        canvas {
-            border: 1px solid #ccc;
+        body {
+            font-family: Calibri,Helvetica,Arial;
+        }
+        div > div {
+            border-bottom: 1px solid black;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+        div > h3 {
+            height: 40px;
         }
     </style>
 </head>
@@ -14,11 +22,13 @@
     <div style="float: left; width: 250px"><h2>Destination</h2><img id="dst" src="gradient.png" /></div>
     <div id="results" style="clear: both; float: left; width: 250px"><h2>Results</h2></div>
     <div id="expected" style="float: left; width: 250px"><h2>Expected</h2></div>
+    <div id="difference" style="float: left; width: 250px"><h2>Difference</h2></div>
     <script>
         var src = document.getElementById('src');
         var dst = document.getElementById('dst');
         var results = document.getElementById('results');
         var expected = document.getElementById('expected');
+        var difference = document.getElementById('difference');
         var tests = [
             'normal',
             'multiply',
@@ -36,47 +46,92 @@
 
         function runTests() {
             tests.forEach(function (blendMode) {
-                console.log('Running test: '+blendMode);
-                console.time(blendMode);
+                //console.log('Running test: '+blendMode);
                 var canvas = document.createElement('canvas');
                 var srcCanvas = document.createElement('canvas');
+                var dstCtx = canvas.getContext('2d');
+                var srcCtx = srcCanvas.getContext('2d');
                 var title = document.createElement('h3');
                 var container = document.createElement('div');
                 title.innerHTML = blendMode;
                 container.appendChild(title);
                 var containerExpected = container.cloneNode(true);
+                var containerDifference = container.cloneNode(true);
                 var expectedImg = new Image();
+                expectedImg.onload = function () {
+                    srcCtx.clearRect(0, 0, srcCanvas.width, srcCanvas.height);
+                    srcCtx.drawImage(expectedImg, 0, 0);
+                    var resultData = dstCtx.getImageData(0, 0, canvas.width, canvas.height);
+                    var diffData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+                    var result = resultData.data;
+                    var diff = diffData.data;
+                    var correct = 0, correctR = 0,
+                        correctG = 0, correctB = 0,
+                        correctA = 0;
+                    for (var px = 0, l = result.length; px < l; px+=4) {
+                        diff[px] = Math.abs(diff[px] - result[px]);
+                        diff[px+1] = Math.abs(diff[px+1] - result[px+1]);
+                        diff[px+2] = Math.abs(diff[px+2] - result[px+2]);
+                        diff[px+3] = Math.abs(diff[px+3] - result[px+3]);
+                        if (diff[px+3] === 0) {
+                            correctA++;
+                        }
+                        if (diff[px] === 0) {
+                            correctR++;
+                        } else {
+                            diff[px+3] += diff[px];
+                            correctR += 1/diff[px];
+                            //diff[px] *= 4;
+                        }
+                        if (diff[px+1] === 0) {
+                            correctG++;
+                        } else {
+                            diff[px+3] += diff[px+1];
+                            correctG += 1/diff[px+1];
+                            //diff[px+1] *= 4;
+                        }
+                        if (diff[px+2] === 0) {
+                            correctB++;
+                        } else {
+                            diff[px+3] += diff[px+2];
+                            correctB += 1/diff[px+2];
+                            //diff[px+2] *= 4;
+                        }
+                    }
+                    srcCtx.putImageData(diffData, 0, 0);
+
+                    correct = correctR + correctG + correctB + correctA;
+                    correct = Math.floor(1000*correct/diff.length)/10;
+                    correctR = Math.floor(4000*correctR/diff.length)/10;
+                    correctG = Math.floor(4000*correctG/diff.length)/10;
+                    correctB = Math.floor(4000*correctB/diff.length)/10;
+                    correctA = Math.floor(4000*correctA/diff.length)/10;
+                    containerDifference.childNodes[0].innerHTML += ' <span style="font-weight: normal; font-size: 12px;">'+
+                                                                    correct+'% correct<br/>R: '+
+                                                                    correctR+'%, G: '+correctG+'%, B: '+
+                                                                    correctB+'%, A: '+correctA+'%</span>';
+                };
                 expectedImg.src = blendMode+'.png';
                 containerExpected.appendChild(expectedImg);
                 container.appendChild(canvas);
                 results.appendChild(container);
                 expected.appendChild(containerExpected);
+                containerDifference.appendChild(srcCanvas);
+                difference.appendChild(containerDifference);
 
-                container.style.height=containerExpected.style.height = '300px';
-
+                canvas.onclick = function () { window.open(canvas.toDataURL()); };
                 srcCanvas.width = src.width;
                 srcCanvas.height = src.height;
                 canvas.width = Math.max(src.width, dst.width);
                 canvas.height = Math.max(src.height, dst.height);
-                var srcCtx = srcCanvas.getContext('2d');
-                var dstCtx = canvas.getContext('2d');
                 srcCtx.drawImage(src, 0, 0);
                 dstCtx.drawImage(dst, 0, 0);
-                Blender.blendOnto(srcCtx, dstCtx, blendMode);
-            });
-        }
 
-        function drawGradients(ctx) {
-            var grad = ctx.createLinearGradient(10, 0, 390, 0);
-            grad.addColorStop(0, 'red');
-            grad.addColorStop(1 / 6, 'orange');
-            grad.addColorStop(2 / 6, 'yellow');
-            grad.addColorStop(3 / 6, 'green')
-            grad.addColorStop(4 / 6, 'aqua');
-            grad.addColorStop(5 / 6, 'blue');
-            grad.addColorStop(1, 'purple');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                //console.time(blendMode);
+                Blender.blendOnto(srcCtx, dstCtx, blendMode);
+                //console.timeEnd(blendMode);
+
+            });
         }
 
         window.onload = runTests;
