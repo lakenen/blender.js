@@ -15,9 +15,9 @@
     </style>
 </head>
 <body>
-    <div><h2>Source</h2><canvas id="src" width="400" height="1200"></canvas></div>
-    <div><h2>Destination</h2><canvas id="dst" width="400" height="1200"></canvas></div>
-    <div><h2>Result</h2><canvas id="out" width="400" height="1200"></canvas></div>
+    <div><h2>Source</h2><canvas id="src" width="400" height="1600"></canvas></div>
+    <div><h2>Destination</h2><canvas id="dst" width="400" height="1600"></canvas></div>
+    <div><h2>Result</h2><canvas id="out" width="400" height="1600"></canvas></div>
     <script>
         var src = document.getElementById('src').getContext('2d');
         var dst = document.getElementById('dst').getContext('2d');
@@ -222,6 +222,74 @@
                         sourceY: 1100,
                         destX: 0,
                         destY: 1100,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'hue',
+                setup: function () {
+                    defaultSetup(0, 1200, this.name);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'hue', {
+                        sourceX: 0,
+                        sourceY: 1200,
+                        destX: 0,
+                        destY: 1200,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'saturation',
+                setup: function () {
+                    defaultSetup(0, 1300, this.name);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'saturation', {
+                        sourceX: 0,
+                        sourceY: 1300,
+                        destX: 0,
+                        destY: 1300,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'color',
+                setup: function () {
+                    defaultSetup(0, 1400, this.name);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'color', {
+                        sourceX: 0,
+                        sourceY: 1400,
+                        destX: 0,
+                        destY: 1400,
+                        width: src.canvas.width,
+                        height: 100
+                    });
+                }
+            },
+            {
+                name: 'luminosity',
+                setup: function () {
+                    defaultSetup(0, 1500, this.name);
+                },
+
+                run: function () {
+                    Blender.blendOnto(src, out, 'luminosity', {
+                        sourceX: 0,
+                        sourceY: 1500,
+                        destX: 0,
+                        destY: 1500,
                         width: src.canvas.width,
                         height: 100
                     });

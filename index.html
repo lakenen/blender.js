@@ -8,9 +8,9 @@
             font-family: Calibri,Helvetica,Arial;
         }
         div > div {
-            border-bottom: 1px solid black;
+            border-top: 1px solid black;
             padding-bottom: 20px;
-            margin-bottom: 20px;
+            margin-top: 20px;
         }
         div > h3 {
             height: 40px;
@@ -41,7 +41,11 @@
             'hard-light',
             'soft-light',
             'difference',
-            'exclusion'
+            'exclusion',
+            'hue',
+            'saturation',
+            'color',
+            'luminosity'
         ];
 
         function runTests() {
@@ -80,21 +84,21 @@
                             correctR++;
                         } else {
                             diff[px+3] += diff[px];
-                            correctR += 1/diff[px];
+                            correctR += (255 - diff[px])/255;
                             //diff[px] *= 4;
                         }
                         if (diff[px+1] === 0) {
                             correctG++;
                         } else {
                             diff[px+3] += diff[px+1];
-                            correctG += 1/diff[px+1];
+                            correctG += (255 - diff[px+1])/255;
                             //diff[px+1] *= 4;
                         }
                         if (diff[px+2] === 0) {
                             correctB++;
                         } else {
                             diff[px+3] += diff[px+2];
-                            correctB += 1/diff[px+2];
+                            correctB += (255 - diff[px+2])/255;
                             //diff[px+2] *= 4;
                         }
                     }

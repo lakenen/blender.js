@@ -8,6 +8,7 @@ var Blender = (function () {
     function blendOnto(source, dest, blendMode, options) {
         var sourceCanvas = source.canvas;
         var destCanvas = dest.canvas;
+
         options = options || {};
         var offsets = {
             width: options.width || sourceCanvas.width,
@@ -21,7 +22,7 @@ var Blender = (function () {
         offsets.height = Math.min(offsets.height, sourceCanvas.height - offsets.sourceY, destCanvas.height - offsets.destY);
 
         // TODO: test for native support (possibly on per-blendmode basis)
-        var useNative = /firefox|webkit\/537\.4/i.test(navigator.userAgent);
+        var useNative = /firefox.*2\d|webkit\/537\.4/i.test(navigator.userAgent);
 
         if (useNative) {
             dest.save();
@@ -40,115 +41,222 @@ var Blender = (function () {
         var dst  = dstData.data;
 
         blendMode = blendMode.replace('-', '');
-        doBlend(src, dst, blendMode);
+        var compositeMode = dest.globalCompositeOperation;
+        compositeMode = compositeMode.replace('-', '');
+
+        var compositeFn = compositors[compositeMode] || compositors.sourceover;
+        var blendFn = blenders[blendMode] || blenders.normal;
+        doBlend(src, dst, blendFn, compositeFn);
 
         dest.putImageData(dstData, offsets.destX, offsets.destY);
     }
 
-    function doBlend(src, dst, blendMode) {
+    function doBlend(src, dst, blendFn, compositeFn) {
         var srcA, srcRA, srcGA, srcBA,
             dstA, dstRA, dstGA, dstBA,
-            dA, ddA,
-            blendFn = blenders[blendMode];
-
+            srcR, srcG, srcB, dstR, dstG, dstB,
+            dA, ddA, destColor;
+        var nSR = function () { return destColor.r || 0; };
+        var nSG = function () { return destColor.g || 0; };
+        var nSB = function () { return destColor.b || 0; };
         for (var px = 0, l = dst.length; px < l; px += 4) {
             srcA  = src[px+3] / 255;
-            srcRA = src[px]   / 255 * srcA;
-            srcGA = src[px+1] / 255 * srcA;
-            srcBA = src[px+2] / 255 * srcA;
+            srcR  = src[px]   / 255;
+            srcG  = src[px+1] / 255;
+            srcB  = src[px+2] / 255;
 
             dstA  = dst[px+3] / 255;
-            dstRA = dst[px]   / 255 * dstA;
-            dstGA = dst[px+1] / 255 * dstA;
-            dstBA = dst[px+2] / 255 * dstA;
+            dstR  = dst[px]   / 255;
+            dstG  = dst[px+1] / 255;
+            dstB  = dst[px+2] / 255;
 
-            dA = (srcA + dstA - srcA * dstA);
-            ddA = 255 / dA;
-            dst[px+3] = Math.ceil(255 * dA);
+            dA = compositeFn.alpha(srcA, dstA);
+            dst[px+3] = 255 * dA;
 
-            dst[px]   = Math.ceil(blendFn(srcRA, dstRA, srcA, dstA) * ddA);
-            dst[px+1] = Math.ceil(blendFn(srcGA, dstGA, srcA, dstA) * ddA);
-            dst[px+2] = Math.ceil(blendFn(srcBA, dstBA, srcA, dstA) * ddA);
+            if (blendFn.nonSeparable) {
+                destColor = blendFn({ r: srcR, g: srcG, b: srcB }, { r: dstR, g: dstG, b: dstB });
+                dst[px]   = 255 * compositeFn.color(srcA, srcR, dstA, dstR, nSR);
+                dst[px+1] = 255 * compositeFn.color(srcA, srcG, dstA, dstG, nSG);
+                dst[px+2] = 255 * compositeFn.color(srcA, srcB, dstA, dstB, nSB);
+                continue;
+            }
+            dst[px]   = 255 * compositeFn.color(srcA, srcR, dstA, dstR, blendFn);
+            dst[px+1] = 255 * compositeFn.color(srcA, srcG, dstA, dstG, blendFn);
+            dst[px+2] = 255 * compositeFn.color(srcA, srcB, dstA, dstB, blendFn);
         }
     }
+    var min = Math.min,
+        max = Math.max,
+        abs = Math.abs,
+        sqrt = Math.sqrt;
 
-    var blenders = {
-        normal: function (srcCA, dstCA, srcA, dstA) {
-            return srcCA + dstCA * (1 - srcA);
-        },
-        multiply: function (srcCA, dstCA, srcA, dstA) {
-            return srcCA * dstCA + srcCA * (1 - dstA) + dstCA * (1 - srcA);
-        },
-        screen: function (srcCA, dstCA, srcA, dstA) {
-            return srcCA + dstCA - srcCA * dstCA;
-        },
-        overlay: function (srcCA, dstCA, srcA, dstA) {
-            return blenders.hardlight(dstCA, srcCA, dstA, srcA);
-        },
-        darken: function (srcCA, dstCA, srcA, dstA) {
-            if (srcCA > dstCA) {
-                return dstCA + srcCA * (1 - dstA);
-            } else {
-                return srcCA + dstCA * (1 - srcA);
+    var sat = function (c) {
+        return max(c.r, c.g, c.b) - min(c.r, c.g, c.b);
+    };
+    var lum = function (c) {
+        return 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;
+    };
+    var clipColor = function (c) {
+        var l = lum(c),
+            n = min(c.r, c.g, c.b),
+            x = max(c.r, c.g, c.b);
+        if (n < 0) {
+            c.r = l + (c.r - l) * l / (l - n);
+            c.g = l + (c.g - l) * l / (l - n);
+            c.b = l + (c.b - l) * l / (l - n);
+        }
+        if (x > 1) {
+            c.r = l + (c.r - l) * (1 - l) / (x - l);
+            c.g = l + (c.g - l) * (1 - l) / (x - l);
+            c.b = l + (c.b - l) * (1 - l) / (x - l);
+        }
+        return c;
+    };
+
+    var setLum = function (c, l) {
+        var d = l - lum(c);
+        c.r = c.r + d;
+        c.g = c.g + d;
+        c.b = c.b + d;
+        return clipColor(c);
+    };
+
+    var setSat = function (c, s) {
+        var cmax = max(c.r, c.g, c.b);
+        var cmin = min(c.r, c.g, c.b);
+        var mx = null, mn = null, md = null;
+        var parts = ['r', 'g', 'b'];
+        parts.forEach(function (x) {
+            if (c[x] === cmax && mx === null) mx = x;
+            else if (c[x] === cmin && mn === null) mn = x;
+            else if (md === null) {
+                md = x;
+                cmid = c[md];
             }
-        },
-        lighten: function (srcCA, dstCA, srcA, dstA) {
-            if (srcCA * dstA > dstCA * srcA) {
-                return srcCA + dstCA * (1 - srcA);
-            } else {
-                return dstCA + srcCA * (1 - dstA);
-            }
-        },
-        colordodge: function (srcCA, dstCA, srcA, dstA) {
-            if (srcCA === srcA && dstCA === 0) {
-                return srcCA * (1 - dstA);
-            } else if (srcCA === srcA) {
-                return srcA * dstA + srcCA * (1 - dstA) + dstCA * (1 - srcA);
-            } else if (srcCA < srcA) {
-                if (srcCA === 1) console.log(srcCA);
-                return Math.min(1, dstCA / (1 - srcCA));
-            }
-        },
-        colorburn: function (srcCA, dstCA, srcA, dstA) {
-            if (srcCA === 0) {
-                if (dstCA === dstA) {
-                    return srcA * dstA + dstCA * (1 - srcA);
+        });
+
+        if (cmax > cmin) {
+            cmid = (cmid - cmin) * s / (cmax - cmin);
+            cmax = s;
+        } else {
+            cmid = cmax = 0;
+        }
+        cmin = 0;
+        c[mx] = cmax;
+        c[mn] = cmin;
+        c[md] = cmid;
+        return c;
+    };
+
+    var compositors = {
+        clear: {
+            alpha: function (srcA, dstA) {
+                if (srcA === 0) {
+                    return dstA;
                 } else {
-                    return dstCA * (1 - srcA);
+                    return 0;
                 }
-            } else if (srcCA > 0) {
-                if (dstA === 0) return srcCA;
-                return srcA * dstA - srcA * dstA * Math.min(1, (1 - dstCA / dstA) * srcA / srcCA) + srcCA * (1 - dstA) + dstCA * (1 - srcA);
-            }
-        },
-        hardlight: function (srcCA, dstCA, srcA, dstA) {
-            if (2 * srcCA <= srcA) {
-                return 2 * dstCA * srcCA + srcCA * (1 - dstA) + dstCA * (1 - srcA);
-            } else {
-                return srcA * dstA - 2 * (dstA - dstCA) * (srcA - srcCA) + srcCA * (1 - dstA) + dstCA * (1 - srcA);
-            }
-        },
-        softlight: function (srcCA, dstCA, srcA, dstA) {
-            var d = dstCA / dstA;
-            if (2 * srcCA <= srcA) {
-                return dstCA * (srcA + (2 * srcCA - srcA) * (1 - d)) + srcCA * (1 - dstA) + dstCA * (1 - srcA);
-            } else {
-                if (4 * dstCA <= dstA) {
-                    d = 4 * d * (4 * d + 1) * (d - 1) + 7 * d;
+            },
+            color: function (srcA, srcC, dstA, dstC, blendFn) {
+                if (srcA === 0) {
+                    return dstC;
                 } else {
-                    d = Math.sqrt(d) - d;
+                    return 0;
                 }
-                if (dstA === 0) return srcCA;
-                return dstCA * srcA + dstA * (2 * srcCA - srcA) * d + srcCA * (1 - dstA) + dstCA * (1 - srcA);
             }
         },
-        difference: function (srcCA, dstCA, srcA, dstA) {
-            return Math.abs(dstCA * srcA - srcCA * dstA) + srcCA * (1 - dstA) + dstCA * (1 - srcA);
-        },
-        exclusion: function (srcCA, dstCA, srcA, dstA) {
-            return (srcCA * dstA + dstCA * srcA - 2 * srcCA * dstCA) + srcCA * (1 - dstA) + dstCA * (1 - srcA);
+        sourceover: {
+            alpha: function (srcA, dstA) {
+                return srcA + dstA * (1 - srcA);
+            },
+            color: function (srcA, srcC, dstA, dstC, blendFn) {
+                var dA = this.alpha(srcA, dstA);
+                return ((1 - dstA) * srcA * srcC + (1 - srcA) * dstA * dstC + srcA * dstA * blendFn(srcC, dstC)) / dA;
+            }
         }
     };
+
+    var blenders = {
+        normal: function (srcC, dstC) {
+            return srcC;
+        },
+        multiply: function (srcC, dstC) {
+            return srcC * dstC;
+        },
+        screen: function (srcC, dstC) {
+            return srcC + dstC - srcC * dstC;
+        },
+        overlay: function (srcC, dstC) {
+            if (dstC <= 0.5) {
+                return 2 * srcC * dstC;
+            } else {
+                return 1 - 2 * (1 - srcC) * (1 - dstC);
+            }
+        },
+        darken: function (srcC, dstC) {
+            return min(srcC, dstC);
+        },
+        lighten: function (srcC, dstC) {
+            return max(srcC, dstC);
+        },
+        colordodge: function (srcC, dstC) {
+            if (srcC < 1) {
+                return min(1, dstC / (1 - srcC));
+            } else {
+                return 1;
+            }
+        },
+        colorburn: function (srcC, dstC) {
+            if (srcC > 0) {
+                return 1 - min(1, (1 - dstC)/srcC);
+            } else {
+                return 0;
+            }
+        },
+        hardlight: function (srcC, dstC) {
+            if (srcC <= 0.5) {
+                return 2 * srcC * dstC;
+            } else {
+                return 1 - 2 * (1 - srcC) * (1 - dstC);
+            }
+        },
+        softlight: function (srcC, dstC) {
+            var g;
+            if (srcC <= 0.5) {
+                return dstC - (1 - 2 * srcC) * dstC * (1 - dstC);
+            } else {
+                if (dstC <= 0.25) {
+                    g = ((16 * dstC - 12) * dstC + 4) * dstC;
+                } else {
+                    g = sqrt(dstC);
+                }
+                return dstC + (2 * srcC - 1) * (g - dstC);
+            }
+        },
+        difference: function (srcC, dstC) {
+            return abs(dstC - srcC);
+        },
+        exclusion: function (srcC, dstC) {
+            return srcC + dstC - 2 * srcC * dstC;
+        },
+
+        // NON-SEPARABLE BLEND MODES
+
+        hue: function (srcC, dstC) {
+            return setLum(setSat(srcC, sat(dstC)), lum(dstC));
+        },
+        saturation: function (srcC, dstC) {
+            return setLum(setSat(dstC, sat(srcC)), lum(dstC));
+        },
+        color: function (srcC, dstC) {
+            return setLum(srcC, lum(dstC));
+        },
+        luminosity: function (srcC, dstC) {
+            return setLum(dstC, lum(srcC));
+        }
+    };
+
+    blenders.hue.nonSeparable = blenders.saturation.nonSeparable = blenders.color.nonSeparable = blenders.luminosity.nonSeparable = true;
 
     return {
         blendOnto: blendOnto
