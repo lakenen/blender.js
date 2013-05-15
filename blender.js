@@ -51,7 +51,7 @@ var Blender = (function () {
         dest.putImageData(dstData, offsets.destX, offsets.destY);
     }
 
-    function doBlend(src, dst, blendFn, compositeFn) {
+    var doBlend = function (src, dst, blendFn, compositeFn) {
         var srcA, srcRA, srcGA, srcBA,
             dstA, dstRA, dstGA, dstBA,
             srcR, srcG, srcB, dstR, dstG, dstB,
@@ -84,7 +84,8 @@ var Blender = (function () {
             dst[px+1] = 255 * compositeFn.color(srcA, srcG, dstA, dstG, blendFn);
             dst[px+2] = 255 * compositeFn.color(srcA, srcB, dstA, dstB, blendFn);
         }
-    }
+    };
+
     var min = Math.min,
         max = Math.max,
         abs = Math.abs,
