@@ -2,6 +2,26 @@
 
 Canvas blending in JS!
 
+[Demo](http://camupod.github.com/blender.js)
+
+## Usage
+
+`Blender.blendOnto(sourceCtx, destCtx, blendMode[, options])`
+
+Examples:
+```js
+Blender.blendOnto(sourceCtx, destCtx, 'multiply');
+
+Blender.blendOnto(sourceCtx, destCtx, 'luminosity', {
+    sourceX: 10,
+    sourceY: 10,
+    destX: 30,
+    destY: 30,
+    width: 100,
+    height: 100
+});
+```
+
 ## License
 
 (The MIT License)

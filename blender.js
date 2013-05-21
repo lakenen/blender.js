@@ -368,7 +368,13 @@ var Blender = (function () {
         return true;
     }
 
+    var blendModes = [];
+    for (var bm in blenders) {
+        blendModes.push(bm);
+    }
+
     return {
+        modes: blendModes,
         blendOnto: blendOnto
     };
 })();

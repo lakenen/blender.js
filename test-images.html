@@ -7,26 +7,38 @@
         body {
             font-family: Calibri,Helvetica,Arial;
         }
+        body > div {
+            float: left;
+            width: 250px;
+        }
         div > div {
             border-top: 1px solid black;
             padding-bottom: 20px;
             margin-top: 20px;
         }
-        div > h3 {
+        h3 {
             height: 40px;
-        }
-
-        body > canvas {
-            width: 50px;
         }
     </style>
 </head>
 <body>
-    <div style="float: left; width: 250px"><h2>Source</h2><img id="src" src="duck.png" /></div>
-    <div style="float: left; width: 250px"><h2>Destination</h2><img id="dst" src="gradient.png" /></div>
-    <div id="results" style="clear: both; float: left; width: 250px"><h2>Results</h2></div>
-    <div id="expected" style="float: left; width: 250px"><h2>Expected</h2></div>
-    <div id="difference" style="float: left; width: 250px"><h2>Difference</h2></div>
+    <div style="float: left; width: 250px">
+        <h2>Source</h2>
+        <img id="src" src="duck.png" />
+    </div>
+    <div style="float: left; width: 250px">
+        <h2>Destination</h2>
+        <img id="dst" src="gradient.png" />
+    </div>
+    <div class="output" id="results" style="clear: both">
+        <h2>Results</h2>
+    </div>
+    <div class="output" id="expected">
+        <h2>Expected</h2>
+    </div>
+    <div class="output" id="difference">
+        <h2>Difference</h2>
+    </div>
     <script>
         var src = document.getElementById('src');
         var dst = document.getElementById('dst');
@@ -55,9 +67,9 @@
         function runTests() {
             tests.forEach(function (blendMode) {
                 //console.log('Running test: '+blendMode);
-                var canvas = document.createElement('canvas');
+                var dstCanvas = document.createElement('canvas');
                 var srcCanvas = document.createElement('canvas');
-                var dstCtx = canvas.getContext('2d');
+                var dstCtx = dstCanvas.getContext('2d');
                 var srcCtx = srcCanvas.getContext('2d');
                 var title = document.createElement('h3');
                 var container = document.createElement('div');
@@ -67,79 +79,77 @@
                 var containerDifference = container.cloneNode(true);
                 var expectedImg = new Image();
                 expectedImg.onload = function () {
-                    srcCtx.clearRect(0, 0, srcCanvas.width, srcCanvas.height);
+                    srcCtx.clearRect(0, 0, srcCtx.canvas.width, srcCtx.canvas.height);
                     srcCtx.drawImage(expectedImg, 0, 0);
-                    var resultData = dstCtx.getImageData(0, 0, canvas.width, canvas.height);
-                    var diffData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
-                    var result = resultData.data;
-                    var diff = diffData.data;
-                    var correct = 0, correctR = 0,
-                        correctG = 0, correctB = 0,
-                        correctA = 0;
-                    for (var px = 0, l = result.length; px < l; px+=4) {
-                        diff[px] = Math.abs(diff[px] - result[px]);
-                        diff[px+1] = Math.abs(diff[px+1] - result[px+1]);
-                        diff[px+2] = Math.abs(diff[px+2] - result[px+2]);
-                        diff[px+3] = Math.abs(diff[px+3] - result[px+3]);
-                        if (diff[px+3] === 0) {
-                            correctA++;
-                        }
-                        if (diff[px] === 0) {
-                            correctR++;
-                        } else {
-                            diff[px+3] += diff[px];
-                            correctR += (255 - diff[px])/255;
-                            //diff[px] *= 4;
-                        }
-                        if (diff[px+1] === 0) {
-                            correctG++;
-                        } else {
-                            diff[px+3] += diff[px+1];
-                            correctG += (255 - diff[px+1])/255;
-                            //diff[px+1] *= 4;
-                        }
-                        if (diff[px+2] === 0) {
-                            correctB++;
-                        } else {
-                            diff[px+3] += diff[px+2];
-                            correctB += (255 - diff[px+2])/255;
-                            //diff[px+2] *= 4;
-                        }
-                    }
-                    srcCtx.putImageData(diffData, 0, 0);
-
-                    correct = correctR + correctG + correctB + correctA;
-                    correct = Math.floor(1000*correct/diff.length)/10;
-                    correctR = Math.floor(4000*correctR/diff.length)/10;
-                    correctG = Math.floor(4000*correctG/diff.length)/10;
-                    correctB = Math.floor(4000*correctB/diff.length)/10;
-                    correctA = Math.floor(4000*correctA/diff.length)/10;
-                    containerDifference.childNodes[0].innerHTML += ' <span style="font-weight: normal; font-size: 12px;">'+
-                                                                    correct+'% correct<br/>R: '+
-                                                                    correctR+'%, G: '+correctG+'%, B: '+
-                                                                    correctB+'%, A: '+correctA+'%</span>';
+                    checkDifference(srcCtx, dstCtx, containerDifference);
                 };
                 expectedImg.src = blendMode+'.png';
                 containerExpected.appendChild(expectedImg);
-                container.appendChild(canvas);
+                container.appendChild(dstCanvas);
                 results.appendChild(container);
                 expected.appendChild(containerExpected);
                 containerDifference.appendChild(srcCanvas);
                 difference.appendChild(containerDifference);
 
-                canvas.onclick = function () { window.open(canvas.toDataURL()); };
                 srcCanvas.width = src.width;
                 srcCanvas.height = src.height;
-                canvas.width = Math.max(src.width, dst.width);
-                canvas.height = Math.max(src.height, dst.height);
+                dstCanvas.width = Math.max(src.width, dst.width);
+                dstCanvas.height = Math.max(src.height, dst.height);
                 srcCtx.drawImage(src, 0, 0);
                 dstCtx.drawImage(dst, 0, 0);
 
-                //console.time(blendMode);
                 Blender.blendOnto(srcCtx, dstCtx, blendMode);
-                //console.timeEnd(blendMode);
-
             });
+        }
+
+        function checkDifference(srcCtx, dstCtx, containerDifference) {
+            var resultData = dstCtx.getImageData(0, 0, dstCtx.canvas.width, dstCtx.canvas.height);
+            var diffData = srcCtx.getImageData(0, 0, srcCtx.canvas.width, srcCtx.canvas.height);
+            var result = resultData.data;
+            var diff = diffData.data;
+            var correct = 0, correctR = 0,
+                correctG = 0, correctB = 0,
+                correctA = 0;
+            for (var px = 0, l = result.length; px < l; px+=4) {
+                diff[px] = Math.abs(diff[px] - result[px]);
+                diff[px+1] = Math.abs(diff[px+1] - result[px+1]);
+                diff[px+2] = Math.abs(diff[px+2] - result[px+2]);
+                diff[px+3] = Math.abs(diff[px+3] - result[px+3]);
+                if (diff[px+3] === 0) {
+                    correctA++;
+                }
+                if (diff[px] === 0) {
+                    correctR++;
+                } else {
+                    diff[px+3] += diff[px];
+                    correctR += (255 - diff[px])/255;
+                }
+                if (diff[px+1] === 0) {
+                    correctG++;
+                } else {
+                    diff[px+3] += diff[px+1];
+                    correctG += (255 - diff[px+1])/255;
+                }
+                if (diff[px+2] === 0) {
+                    correctB++;
+                } else {
+                    diff[px+3] += diff[px+2];
+                    correctB += (255 - diff[px+2])/255;
+                }
+            }
+            srcCtx.putImageData(diffData, 0, 0);
+
+            correct = correctR + correctG + correctB + correctA;
+            correct = Math.floor(1000*correct/diff.length)/10;
+            correctR = Math.floor(4000*correctR/diff.length)/10;
+            correctG = Math.floor(4000*correctG/diff.length)/10;
+            correctB = Math.floor(4000*correctB/diff.length)/10;
+            correctA = Math.floor(4000*correctA/diff.length)/10;
+            containerDifference.childNodes[0].innerHTML +=
+                ' <span style="font-weight: normal; font-size: 12px;">'+
+                correct+'% correct<br/>R: '+
+                correctR+'%, G: '+correctG+'%, B: '+
+                correctB+'%, A: '+correctA+'%</span>';
         }
 
         window.onload = runTests;
