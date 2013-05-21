@@ -1,9 +1,9 @@
 // Blender.js
 // Copyright 2013 Cameron Lakenen
-// https://dvcs.w3.org/hg/FXTF/rawfile/tip/compositing/index.html#blendingnormal
-
+// https://github.com/camupod/blender.js
 
 var Blender = (function () {
+    var nativeBlendingSupport = {};
 
     function blendOnto(source, dest, blendMode, options) {
         var sourceCanvas = source.canvas;
@@ -21,10 +21,20 @@ var Blender = (function () {
         offsets.width  = Math.min(offsets.width, sourceCanvas.width - offsets.sourceX, destCanvas.width - offsets.destX);
         offsets.height = Math.min(offsets.height, sourceCanvas.height - offsets.sourceY, destCanvas.height - offsets.destY);
 
-        // TODO: test for native support (possibly on per-blendmode basis)
-        var useNative = /firefox.*2\d|webkit\/537\.4/i.test(navigator.userAgent);
+        var useNativeBlending;
+        if (blendMode === 'normal') {
+            // normal blend mode is the same as simple
+            // source-over compositing, so let's do that instead!
+            blendMode = 'source-over';
+            useNativeBlending = true;
+        } else {
+            useNativeBlending = nativeBlendingSupport[blendMode];
+            if (typeof useNativeBlending === 'undefined') {
+                useNativeBlending = nativeBlendingSupport[blendMode] = nativeBlendingSupported(blendMode);
+            }
+        }
 
-        if (useNative) {
+        if (useNativeBlending) {
             dest.save();
             dest.globalCompositeOperation = blendMode;
             dest.drawImage(source.canvas,
@@ -56,9 +66,9 @@ var Blender = (function () {
             dstA, dstRA, dstGA, dstBA,
             srcR, srcG, srcB, dstR, dstG, dstB,
             dA, ddA, destColor;
-        var nSR = function () { return destColor.r || 0; };
-        var nSG = function () { return destColor.g || 0; };
-        var nSB = function () { return destColor.b || 0; };
+        var nSR = function () { return destColor[0] || 0; };
+        var nSG = function () { return destColor[1] || 0; };
+        var nSB = function () { return destColor[2] || 0; };
         for (var px = 0, l = dst.length; px < l; px += 4) {
             srcA  = src[px+3] / 255;
             srcR  = src[px]   / 255;
@@ -74,7 +84,7 @@ var Blender = (function () {
             dst[px+3] = 255 * dA;
 
             if (blendFn.nonSeparable) {
-                destColor = blendFn({ r: srcR, g: srcG, b: srcB }, { r: dstR, g: dstG, b: dstB });
+                destColor = blendFn([srcR, srcG, srcB], [dstR, dstG, dstB]);
                 dst[px]   = 255 * compositeFn.color(srcA, srcR, dstA, dstR, nSR);
                 dst[px+1] = 255 * compositeFn.color(srcA, srcG, dstA, dstG, nSG);
                 dst[px+2] = 255 * compositeFn.color(srcA, srcB, dstA, dstB, nSB);
@@ -92,60 +102,80 @@ var Blender = (function () {
         sqrt = Math.sqrt;
 
     var sat = function (c) {
-        return max(c.r, c.g, c.b) - min(c.r, c.g, c.b);
+        return max.apply(Math, c) - min.apply(Math, c);
     };
     var lum = function (c) {
-        return 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;
+        return 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
     };
     var clipColor = function (c) {
         var l = lum(c),
-            n = min(c.r, c.g, c.b),
-            x = max(c.r, c.g, c.b);
+            n = min.apply(Math, c),
+            x = max.apply(Math, c);
         if (n < 0) {
-            c.r = l + (c.r - l) * l / (l - n);
-            c.g = l + (c.g - l) * l / (l - n);
-            c.b = l + (c.b - l) * l / (l - n);
+            c[0] = l + ((c[0] - l) * l) / (l - n);
+            c[1] = l + ((c[1] - l) * l) / (l - n);
+            c[2] = l + ((c[2] - l) * l) / (l - n);
         }
         if (x > 1) {
-            c.r = l + (c.r - l) * (1 - l) / (x - l);
-            c.g = l + (c.g - l) * (1 - l) / (x - l);
-            c.b = l + (c.b - l) * (1 - l) / (x - l);
+            c[0] = l + ((c[0] - l) * (1 - l) / (x - l));
+            c[1] = l + ((c[1] - l) * (1 - l) / (x - l));
+            c[2] = l + ((c[2] - l) * (1 - l) / (x - l));
         }
         return c;
     };
 
     var setLum = function (c, l) {
         var d = l - lum(c);
-        c.r = c.r + d;
-        c.g = c.g + d;
-        c.b = c.b + d;
+        c[0] = c[0] + d;
+        c[1] = c[1] + d;
+        c[2] = c[2] + d;
         return clipColor(c);
     };
 
-    var setSat = function (c, s) {
-        var cmax = max(c.r, c.g, c.b);
-        var cmin = min(c.r, c.g, c.b);
-        var mx = null, mn = null, md = null;
-        var parts = ['r', 'g', 'b'];
-        parts.forEach(function (x) {
-            if (c[x] === cmax && mx === null) mx = x;
-            else if (c[x] === cmin && mn === null) mn = x;
-            else if (md === null) {
-                md = x;
-                cmid = c[md];
-            }
-        });
-
-        if (cmax > cmin) {
-            cmid = (cmid - cmin) * s / (cmax - cmin);
-            cmax = s;
-        } else {
-            cmid = cmax = 0;
+    var setSatComponents = function (color, cmin, cmid, cmax, satVal) {
+        color[cmid] -= color[cmin];
+        color[cmax] -= color[cmin];
+        color[cmin] = 0;
+        if (color[cmax] > 0) {
+            color[cmid] *= satVal / color[cmax];
+            color[cmax] = satVal;
         }
-        cmin = 0;
-        c[mx] = cmax;
-        c[mn] = cmin;
-        c[md] = cmid;
+    };
+
+    var setSat = function (c, s) {
+        var r = c[0], g = c[1], b = c[2];
+        if (r <= g) {
+            if (g <= b) {
+                // r <= g <= b
+                setSatComponents(c, 0, 1, 2, s);
+            }
+            else {
+                if (r <= b) {
+                    // r <= b <= g
+                    setSatComponents(c, 0, 2, 1, s);
+                }
+                else {
+                    // b <= r <= g
+                    setSatComponents(c, 2, 0, 1, s);
+                }
+            }
+        }
+        else {
+            if (r <= b) {
+                // g <= r <= b
+                setSatComponents(c, 1, 0, 2, s);
+            }
+            else {
+                if (g <= b) {
+                    // g <= b <= r
+                    setSatComponents(c, 1, 2, 0, s);
+                }
+                else {
+                    // b <= g <= r
+                    setSatComponents(c, 2, 1, 0, s);
+                }
+            }
+        }
         return c;
     };
 
@@ -177,6 +207,8 @@ var Blender = (function () {
         }
     };
 
+
+    // https://dvcs.w3.org/hg/FXTF/rawfile/tip/compositing/index.html#blendingnormal
     var blenders = {
         normal: function (srcC, dstC) {
             return srcC;
@@ -258,6 +290,83 @@ var Blender = (function () {
     };
 
     blenders.hue.nonSeparable = blenders.saturation.nonSeparable = blenders.color.nonSeparable = blenders.luminosity.nonSeparable = true;
+
+    function nativeBlendingSupported(mode) {
+        var tolerance = 8;
+        var canvas = document.createElement('canvas');
+        var ctx = canvas.getContext('2d');
+        var expected = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        canvas.width = canvas.height = 2;
+        ctx.globalCompositeOperation = mode;
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, 1, 1);
+        ctx.fillStyle = 'rgba(0, 0, 255, 0.75)';
+        ctx.fillRect(0, 0, 1, 1);
+        ctx.fillStyle = 'rgba(255, 0, 0, 1)';
+        ctx.fillRect(1, 0, 1, 1);
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.75)';
+        ctx.fillRect(1, 0, 1, 1);
+        ctx.fillStyle = 'rgba(255, 0, 0, 1)';
+        ctx.fillRect(0, 1, 1, 1);
+        ctx.fillStyle = 'rgba(200, 255, 0, 1)';
+        ctx.fillRect(0, 1, 1, 1);
+        ctx.fillStyle = 'rgba(255, 0, 255, 1)';
+        ctx.fillRect(1, 1, 1, 1);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillRect(1, 1, 1, 1);
+        var data = ctx.getImageData(0, 0, 2, 2).data;
+        switch (mode) {
+            case 'normal':
+                return true;
+            case 'multiply':
+                expected = [36, 0, 109, 223, 64, 0, 0, 255, 200, 0, 0, 255, 255, 0, 255, 255];
+                break;
+            case 'screen':
+                expected = [145, 0, 218, 223, 255, 191, 0, 255, 255, 255, 0, 255, 255, 127, 255, 255];
+                break;
+            case 'overlay':
+                expected = [145, 0, 109, 223, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 255, 255];
+                break;
+            case 'darken':
+                expected = [36, 0, 109, 223, 64, 0, 0, 255, 200, 0, 0, 255, 255, 0, 255, 255];
+                break;
+            case 'lighten':
+                expected = [145, 0, 218, 223, 255, 191, 0, 255, 255, 255, 0, 255, 255, 127, 255, 255];
+                break;
+            case 'color-dodge':
+                expected = [145, 0, 109, 223, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 255, 255];
+                break;
+            case 'color-burn':
+                expected = [145, 0, 109, 223, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 255, 255];
+                break;
+            case 'hard-light':
+                expected = [36, 0, 218, 223, 64, 191, 0, 255, 255, 255, 0, 255, 255, 127, 255, 255];
+                break;
+            case 'soft-light':
+                expected = [145, 0, 109, 223, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 255, 255];
+                break;
+            case 'difference':
+            case 'exclusion':
+                expected = [145, 0, 218, 223, 255, 191, 0, 255, 55, 255, 0, 255, 128, 127, 128, 255];
+                break;
+            case 'hue':
+            case 'color':
+                expected = [59, 22, 218, 223, 64, 98, 0, 255, 73, 93, 0, 255, 180, 52, 180, 255];
+                break;
+            case 'saturation':
+                expected = [144, 0, 109, 223, 255, 0, 0, 255, 255, 0, 0, 255, 180, 52, 180, 255];
+                break;
+            case 'luminosity':
+                expected = [76, 0, 109, 223, 255, 78, 78, 255, 255, 191, 191, 255, 255, 127, 255, 255];
+                break;
+        }
+        for (var i = 0, l = data.length; i < l; ++i) {
+            if (abs(data[i] - expected[i]) > tolerance) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     return {
         blendOnto: blendOnto
