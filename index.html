@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>blender.js</title>
+    <script type="text/javascript" src="blender.js"></script>
+    <style>
+        body {
+            font-family: Calibri,Helvetica,Arial;
+        }
+    </style>
+</head>
+<body>
+    <h1>Blender.js</h1>
+
+    <p>Canvas blending in JS! Uses native blending if supported. See more tests <a href="test-images.html">here</a> and <a href="test-colors.html">here</a>.</p>
+
+    <div>
+        <img id="src" src="demo1.jpg" />
+        <img id="dst" src="demo2.jpg" />
+        <canvas id="out"></canvas>
+    </div>
+
+    <script type="text/javascript">
+        var modes = ['multiply','darken','lighten','color-dodge','difference','color-burn'];
+        window.onload = function () {
+            var srcImg = document.getElementById('src');
+            var dstImg = document.getElementById('dst');
+            var srcCanvas = document.createElement('canvas');
+            var dstCanvas = document.getElementById('out');
+
+            var srcCtx = srcCanvas.getContext('2d');
+            var dstCtx = dstCanvas.getContext('2d');
+
+            srcCanvas.width = dstCanvas.width = dstImg.width;
+            srcCanvas.height = dstCanvas.height = dstImg.height;
+
+            srcCtx.drawImage(srcImg, 0, 0);
+            dstCtx.drawImage(dstImg, 0, 0);
+
+            all(srcCtx, dstCtx);
+
+            var lastmode = null;
+            document.addEventListener('mousemove', function (ev) {
+                var x = ev.pageX || ev.touches && ev.touches[0].pageX;
+                var y = ev.pageY || ev.touches && ev.touches[0].pageY;
+                x -= dstCanvas.offsetLeft;
+                y -= dstCanvas.offsetTop;
+                if (x < 0 || x > dstCanvas.width || y < 0 || y > dstCanvas.height) {
+                    if (lastmode) {
+                        dstCtx.drawImage(dstImg, 0, 0);
+                        all(srcCtx, dstCtx);
+                        lastmode = null;
+                    }
+                    return;
+                };
+                x = modes[Math.floor(x / dstCanvas.width * modes.length)];
+                if (x != lastmode) {
+                    dstCtx.drawImage(dstImg, 0, 0);
+                    blend(srcCtx, dstCtx, x);
+                    lastmode = x;
+                }
+            });
+        };
+
+        function blend(srcCtx, dstCtx, mode) {
+            Blender.blendOnto(srcCtx, dstCtx, mode);
+            dstCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            dstCtx.font = '40px Calibri,Helvetica,Arial';
+            dstCtx.fillText(mode, 10, 40);
+        }
+
+        function all(srcCtx, dstCtx) {
+            var w = dstCtx.canvas.width;
+            var h = dstCtx.canvas.height;
+            var n = modes.length;
+            for (var i = 0; i < n; ++i) {
+                Blender.blendOnto(srcCtx, dstCtx, modes[i], {
+                    width: Math.ceil(w / n),
+                    height: h,
+                    sourceX: Math.floor(i * w / n),
+                    destX: Math.floor(i * w / n)
+                });
+            }
+        }
+    </script>
+
+    <a href="https://github.com/camupod/blender.js"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub"></a>
+</body>
+</html>
