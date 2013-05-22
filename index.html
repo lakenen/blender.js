@@ -22,56 +22,66 @@
 
     <script type="text/javascript">
         var modes = ['multiply','darken','lighten','color-dodge','difference','color-burn'];
+        var srcImg = document.getElementById('src');
+        var dstImg = document.getElementById('dst');
+        var srcCanvas = document.createElement('canvas');
+        var dstCanvas = document.getElementById('out');
+
+        var srcCtx = srcCanvas.getContext('2d');
+        var dstCtx = dstCanvas.getContext('2d');
+        var lastmode = null;
+
         window.onload = function () {
-            var srcImg = document.getElementById('src');
-            var dstImg = document.getElementById('dst');
-            var srcCanvas = document.createElement('canvas');
-            var dstCanvas = document.getElementById('out');
-
-            var srcCtx = srcCanvas.getContext('2d');
-            var dstCtx = dstCanvas.getContext('2d');
-
             srcCanvas.width = dstCanvas.width = dstImg.width;
             srcCanvas.height = dstCanvas.height = dstImg.height;
 
             srcCtx.drawImage(srcImg, 0, 0);
             dstCtx.drawImage(dstImg, 0, 0);
 
-            all(srcCtx, dstCtx);
-
-            var lastmode = null;
-            document.addEventListener('mousemove', function (ev) {
-                var x = ev.pageX || ev.touches && ev.touches[0].pageX;
-                var y = ev.pageY || ev.touches && ev.touches[0].pageY;
-                x -= dstCanvas.offsetLeft;
-                y -= dstCanvas.offsetTop;
-                if (x < 0 || x > dstCanvas.width || y < 0 || y > dstCanvas.height) {
-                    if (lastmode) {
-                        dstCtx.drawImage(dstImg, 0, 0);
-                        all(srcCtx, dstCtx);
-                        lastmode = null;
-                    }
-                    return;
-                };
-                x = modes[Math.floor(x / dstCanvas.width * modes.length)];
-                if (x != lastmode) {
-                    dstCtx.drawImage(dstImg, 0, 0);
-                    blend(srcCtx, dstCtx, x);
-                    lastmode = x;
-                }
-            });
-        };
-
-        function blend(srcCtx, dstCtx, mode) {
-            Blender.blendOnto(srcCtx, dstCtx, mode);
+            all();
             dstCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             dstCtx.font = '40px Calibri,Helvetica,Arial';
+            dstCtx.fillText('(mouse over me)', 10, 40);
+
+            var onmove = function (ev) {
+                var x = ev.pageX || ev.touches && ev.touches[0].pageX || 0;
+                var y = ev.pageY || ev.touches && ev.touches[0].pageY || 0;
+                handleMouseMove(x, y);
+                return false;
+            };
+            document.addEventListener('mousemove', onmove);
+            document.addEventListener('touchmove', onmove);
+            document.addEventListener('touchstart', onmove);
+            document.addEventListener('touchend', function () { return false; });
+        };
+
+        function handleMouseMove(x, y) {
+            x -= dstCanvas.offsetLeft;
+            y -= dstCanvas.offsetTop;
+            if (x < 0 || x > dstCanvas.width || y < 0 || y > dstCanvas.height) {
+                if (lastmode) {
+                    dstCtx.drawImage(dstImg, 0, 0);
+                    all();
+                    lastmode = null;
+                }
+                return;
+            };
+            x = modes[Math.floor(x / dstCanvas.width * modes.length)];
+            if (x != lastmode) {
+                dstCtx.drawImage(dstImg, 0, 0);
+                blend(x);
+                lastmode = x;
+            }
+        }
+
+        function blend(mode) {
+            Blender.blendOnto(srcCtx, dstCtx, mode);
             dstCtx.fillText(mode, 10, 40);
         }
 
-        function all(srcCtx, dstCtx) {
-            var w = dstCtx.canvas.width;
-            var h = dstCtx.canvas.height;
+        function all() {
+            var w = dstCanvas.width;
+            var h = dstCanvas.height;
             var n = modes.length;
             for (var i = 0; i < n; ++i) {
                 Blender.blendOnto(srcCtx, dstCtx, modes[i], {
