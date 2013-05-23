@@ -390,6 +390,7 @@ var Blender = (function () {
 
     return {
         modes: blendModes,
+        supports: nativeBlendingSupported,
         blendOnto: blendOnto
     };
 })();
