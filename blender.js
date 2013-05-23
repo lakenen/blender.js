@@ -5,6 +5,11 @@
 var Blender = (function () {
     var nativeBlendingSupport = {};
 
+    var min = Math.min,
+        max = Math.max,
+        abs = Math.abs,
+        sqrt = Math.sqrt;
+
     function blendOnto(source, dest, blendMode, options) {
         var sourceCanvas = source.canvas;
         var destCanvas = dest.canvas;
@@ -66,6 +71,8 @@ var Blender = (function () {
             dstA, dstRA, dstGA, dstBA,
             srcR, srcG, srcB, dstR, dstG, dstB,
             dA, ddA, destColor;
+
+        // non-separable blendmode identities for blendFn
         var nSR = function () { return destColor[0] || 0; };
         var nSG = function () { return destColor[1] || 0; };
         var nSB = function () { return destColor[2] || 0; };
@@ -96,17 +103,17 @@ var Blender = (function () {
         }
     };
 
-    var min = Math.min,
-        max = Math.max,
-        abs = Math.abs,
-        sqrt = Math.sqrt;
+
+    // NON-SEPARABLE BLEND HELPERS
 
     var sat = function (c) {
         return max.apply(Math, c) - min.apply(Math, c);
     };
+
     var lum = function (c) {
         return 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
     };
+
     var clipColor = function (c) {
         var l = lum(c),
             n = min.apply(Math, c),
@@ -179,7 +186,11 @@ var Blender = (function () {
         return c;
     };
 
+
+    // COMPOSITING FUNCTIONS
+
     var compositors = {
+        /* not used; just here for an example (useless) compositor
         clear: {
             alpha: function (srcA, dstA) {
                 if (srcA === 0) {
@@ -195,7 +206,7 @@ var Blender = (function () {
                     return 0;
                 }
             }
-        },
+        },*/
         sourceover: {
             alpha: function (srcA, dstA) {
                 return srcA + dstA * (1 - srcA);
@@ -207,6 +218,8 @@ var Blender = (function () {
         }
     };
 
+
+    // BLENDING FUNCTIONS
 
     // https://dvcs.w3.org/hg/FXTF/rawfile/tip/compositing/index.html#blendingnormal
     var blenders = {
@@ -274,7 +287,6 @@ var Blender = (function () {
         },
 
         // NON-SEPARABLE BLEND MODES
-
         hue: function (srcC, dstC) {
             return setLum(setSat(srcC, sat(dstC)), lum(dstC));
         },
@@ -290,6 +302,9 @@ var Blender = (function () {
     };
 
     blenders.hue.nonSeparable = blenders.saturation.nonSeparable = blenders.color.nonSeparable = blenders.luminosity.nonSeparable = true;
+
+
+    // TESTING NATIVE SUPPORT (fuzzy & arbitrary)
 
     function nativeBlendingSupported(mode) {
         var tolerance = 8;
