@@ -2,7 +2,7 @@
 
 Canvas blending in Javascript implemented to the [W3 Compositing and Blending Spec](https://dvcs.w3.org/hg/FXTF/rawfile/tip/compositing/index.html#blendingnormal). Blender.js will use native canvas blending (via `globalCompositeOperation` and `drawImage`) when possible. Feedback and contributions welcome!
 
-[Demo](http://camupod.github.com/blender.js)
+[Demo](http://lakenen.github.io/blender.js/)
 
 ## Usage
 
